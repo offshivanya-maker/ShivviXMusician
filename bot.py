@@ -19,7 +19,7 @@ from telegram.ext import (
     ContextTypes,
 )
 from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioPiped, AudioParameters
+from pytgcalls.types import MediaStream, AudioQuality
 from pyrogram import Client
 import yt_dlp
 
@@ -32,12 +32,7 @@ BOT_TOKEN      = os.environ.get("BOT_TOKEN", "8800384691:AAHO9cRVADcPv73PfgpnOJr
 SESSION_STRING = os.environ.get("SESSION", "BQE81ZYAGqjo14uOxdeHiBPQRiCc4yNy6qHE9ml1wYrgVJnJTkjYmKyYLkLGD5KxnhMAgwsfTAUsfADZ6xvMiKa6MlzCmaxQMsyk0SYCiHf4IDjecle7yW-fGWrG54D4wZ8Yb_p3pOyQCuvVj13KFLkck-5kB4Pr4vlH9nCpxw6X8LHXT-blY--xORgbDrXTn-sXVLfrgGjbR1mbvpd4o61tfSLJPpYFXOIm1hF3eyIvs21xFhlWajLQI8iB5GnQPeupp4OjGkolZsZiod789De9NuYs2QVDMGlNM71Zlz_WfBbgGUt-4Ig1qtmLsy3ui4Plwo6nfT3s7iLixXUFqlPU_Zt7gwAAAAINlPQsAA")
 DOWNLOAD_DIR   = "downloads"
 
-_aq = os.environ.get("AUDIO_QUALITY", "MEDIUM").upper()
-AUDIO_QUALITY = {
-    "HIGH":   AudioParameters(48000, 2, 128),
-    "MEDIUM": AudioParameters(48000, 2, 64),
-    "LOW":    AudioParameters(48000, 1, 32),
-}.get(_aq, AudioParameters(48000, 2, 64))
+AUDIO_QUALITY = getattr(AudioQuality, os.environ.get("AUDIO_QUALITY", "MEDIUM"), AudioQuality.MEDIUM)
 
 # ═══════════════════════════════════════════════
 
@@ -100,7 +95,7 @@ def cleanup(filepath: str):
         pass
 
 def make_stream(filepath: str):
-    return AudioPiped(filepath, audio_parameters=AUDIO_QUALITY)
+    return MediaStream(filepath, audio_parameters=AUDIO_QUALITY)
 
 def fmt_time(seconds: int) -> str:
     m, s = divmod(int(seconds or 0), 60)
