@@ -62,80 +62,108 @@ import traceback
 import urllib.request
 import json
 import urllib.parse
+import ssl
 
 # ═══════════════════════════════════════════════
-#  YOUTUBE DOWNLOAD (DRM & NAMEERROR FIXED)
+#  BYPASS YOUTUBE BLOCKS - INVIDIOUS STREAMER
 # ═══════════════════════════════════════════════
 def yt_download(query: str) -> dict:
-    # 1. Search Query Handle Karein
-    if not query.startswith(("http://", "https://")):
+    # SSL verification bypass taaki Railway par network drops na ho
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    video_id = None
+
+    # 1. Video ID Extract ya Search karein
+    if "youtube.com/watch?v=" in query or "youtu.be/" in query:
+        if "youtu.be/" in query:
+            video_id = query.split("youtu.be/")[-1].split("?")[0].split("&")[0]
+        else:
+            parsed_url = urllib.parse.urlparse(query)
+            video_id = urllib.parse.parse_qs(parsed_url.query).get("v", [None])[0]
+    
+    # Agar search text hai, toh API se best video_id dhoondhein
+    if not video_id:
         try:
-            # Alternate Invidious API se video id nikalna safely
             encoded_query = urllib.parse.quote(query)
             search_url = f"https://invidious.io.lol/api/v1/search?q={encoded_query}&type=video"
             req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as response:
-                data = json.loads(response.read().decode())
-                if data and len(data) > 0:
-                    video_id = data[0].get("videoId")
-                    search_query = f"https://www.youtube.com/watch?v={video_id}"
-                else:
-                    search_query = f"ytsearch1:{query}"
-        except Exception:
-            search_query = f"ytsearch1:{query}"
-    else:
-        search_query = query
+            with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
+                search_data = json.loads(response.read().decode())
+                if search_data and len(search_data) > 0:
+                    video_id = search_data[0].get("videoId")
+        except Exception as se:
+            print(f"Search fallback failed: {se}")
 
-    # 2. Options Setup (DRM/Signature bypass ke liye android + ios combo sabse best hai)
-    ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": f"{DOWNLOAD_DIR}/%(id)s.%(ext)s",
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "192",
-        }],
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "ios"],  # DRM error se bachne ke liye tv hata kar android/ios use kiya
-                "skip": ["webpage", "hls"],
-            }
-        },
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Mobile Safari/537.36",
-        },
-    }
-    
+    if not video_id:
+        return {"success": False, "error": "❌ Gana nahi mila ya search API down hai!"}
+
+    # 2. Invidious API se Direct Audio Stream URL fetch karein
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(search_query, download=True)
+        # Multiple instances backup ke liye
+        instances = ["https://invidious.io.lol", "https://inv.tux.digital", "https://invidious.nerdvpn.de"]
+        video_data = None
+        
+        for instance in instances:
+            try:
+                api_url = f"{instance}/api/v1/videos/{video_id}"
+                req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
+                    video_data = json.loads(response.read().decode())
+                    if video_data and "adaptiveFormats" in video_data:
+                        break
+            except Exception:
+                continue
+
+        if not video_data:
+            return {"success": False, "error": "❌ YouTube Strong Block! Kripya thodi der baad try karein."}
+
+        # Sabse behtareen audio format filter karein
+        audio_streams = [
+            f for f in video_data.get("adaptiveFormats", [])
+            if f.get("type", "").startswith("audio/")
+        ]
+        
+        if not audio_streams:
+            return {"success": False, "error": "❌ Is video ka audio format nahi mil saka."}
             
-            if "entries" in info:
-                entries = [e for e in (info.get("entries") or []) if e]
-                if not entries:
-                    return {
-                        "success": False,
-                        "error": "❌ Kuch samajh nahi aaya! Koi doosra song try karo ya proper YouTube link use karo."
-                    }
-                info = entries[0]
-            
-            filepath = os.path.join(DOWNLOAD_DIR, f"{info['id']}.mp3")
-            return {
-                "success":   True,
-                "filepath":  filepath,
-                "title":     info.get("title", "Unknown"),
-                "duration":  info.get("duration", 0),
-            }
-    except Exception as e:
-        # Ab 'traceback' properly imported hai, error logs Railway me saaf dikhenge
-        traceback.print_exc()
+        # Select highest quality audio stream
+        best_audio = max(audio_streams, key=lambda x: int(x.get("bitrate", 0)))
+        audio_url = best_audio.get("url")
+        title = video_data.get("title", "Audio Track")
+        duration = video_data.get("lengthSeconds", 0)
+
+        # 3. Download and convert to local MP3 using ffmpeg binary
+        output_file = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp3")
+        
+        # Purani file ho toh clean karein
+        if os.path.exists(output_file):
+            os.remove(output_file)
+
+        # Direct FFmpeg download command line run karein jo safest hai
+        import subprocess
+        ffmpeg_cmd = [
+            "ffmpeg", "-y", "-i", audio_url,
+            "-vn", "-acodec", "libmp3lame", "-b:a", "192k",
+            output_file
+        ]
+        
+        process = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45)
+        
+        if process.returncode != 0 or not os.path.exists(output_file):
+            return {"success": False, "error": "❌ Audio download stream break ho gayi."}
+
         return {
-            "success": False,
-            "error": f"YouTube Error: {str(e)}"
+            "success": True,
+            "filepath": output_file,
+            "title": title,
+            "duration": duration
         }
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"success": False, "error": f"Error: {str(e)}"}
 # ─────────────────────────────────────────────
 #  PROGRESS BAR  (zip bot style)
 # ─────────────────────────────────────────────
