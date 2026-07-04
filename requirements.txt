@@ -1,7 +1,7 @@
 python-telegram-bot==20.7
-pyrofork==2.3.36
-py-tgcalls
+pyrogram==2.0.106
 TgCrypto
+py-tgcalls==3.0.0.dev24
 yt-dlp
 nest_asyncio
 ffmpeg-python
