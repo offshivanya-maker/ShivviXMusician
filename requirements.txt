@@ -2,6 +2,6 @@ python-telegram-bot==20.7
 pyrofork
 TgCrypto
 py-tgcalls==2.2.11
-yt-dlp
+yt-dlp>=2025.01.01
 nest_asyncio
 ffmpeg-python
