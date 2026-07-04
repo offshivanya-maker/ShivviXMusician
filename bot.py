@@ -19,8 +19,7 @@ from telegram.ext import (
     ContextTypes,
 )
 from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import AudioPiped
-from pytgcalls.types.input_stream.audio_parameters import AudioParameters
+from pytgcalls.types import AudioPiped, AudioParameters
 from pyrogram import Client
 import yt_dlp
 
