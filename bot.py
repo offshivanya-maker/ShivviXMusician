@@ -63,12 +63,12 @@ import urllib.request
 import json
 import urllib.parse
 import ssl
+import subprocess
 
 # ═══════════════════════════════════════════════
-#  BYPASS YOUTUBE BLOCKS - INVIDIOUS STREAMER
+#  BYPASS YOUTUBE BLOCKS & COMPLETE LOCAL DOWNLOAD
 # ═══════════════════════════════════════════════
 def yt_download(query: str) -> dict:
-    # SSL verification bypass taaki Railway par network drops na ho
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -83,25 +83,24 @@ def yt_download(query: str) -> dict:
             parsed_url = urllib.parse.urlparse(query)
             video_id = urllib.parse.parse_qs(parsed_url.query).get("v", [None])[0]
     
-    # Agar search text hai, toh API se best video_id dhoondhein
+    # Agar text search query hai, toh video_id dhoondhein
     if not video_id:
         try:
             encoded_query = urllib.parse.quote(query)
             search_url = f"https://invidious.io.lol/api/v1/search?q={encoded_query}&type=video"
             req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
+            with urllib.request.urlopen(req, timeout=7, context=ctx) as response:
                 search_data = json.loads(response.read().decode())
                 if search_data and len(search_data) > 0:
                     video_id = search_data[0].get("videoId")
         except Exception as se:
-            print(f"Search fallback failed: {se}")
+            logger.error(f"Search fallback failed: {se}")
 
     if not video_id:
-        return {"success": False, "error": "❌ Gana nahi mila ya search API down hai!"}
+        return {"success": False, "error": "❌ Gana nahi mila ya search service busy hai."}
 
-    # 2. Invidious API se Direct Audio Stream URL fetch karein
+    # 2. Invidious API se Direct Stream URL nikalna
     try:
-        # Multiple instances backup ke liye
         instances = ["https://invidious.io.lol", "https://inv.tux.digital", "https://invidious.nerdvpn.de"]
         video_data = None
         
@@ -117,53 +116,58 @@ def yt_download(query: str) -> dict:
                 continue
 
         if not video_data:
-            return {"success": False, "error": "❌ YouTube Strong Block! Kripya thodi der baad try karein."}
+            return {"success": False, "error": "❌ YouTube data fetch karne mein dikkat aa rahi hai."}
 
-        # Sabse behtareen audio format filter karein
+        # Audio formats filter karein
         audio_streams = [
             f for f in video_data.get("adaptiveFormats", [])
             if f.get("type", "").startswith("audio/")
         ]
         
         if not audio_streams:
-            return {"success": False, "error": "❌ Is video ka audio format nahi mil saka."}
+            return {"success": False, "error": "❌ Is video ka audio track nahi mil saka."}
             
-        # Select highest quality audio stream
+        # Best audio quality bitrate track select karein
         best_audio = max(audio_streams, key=lambda x: int(x.get("bitrate", 0)))
         audio_url = best_audio.get("url")
         title = video_data.get("title", "Audio Track")
         duration = video_data.get("lengthSeconds", 0)
 
-        # 3. Download and convert to local MP3 using ffmpeg binary
+        # Output MP3 destination file
         output_file = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp3")
         
-        # Purani file ho toh clean karein
         if os.path.exists(output_file):
-            os.remove(output_file)
+            try:
+                os.remove(output_file)
+            except Exception:
+                pass
 
-        # Direct FFmpeg download command line run karein jo safest hai
-        import subprocess
+        # 3. PEHLE FILE SAVE HOGI (No Live Streaming)
+        # FFmpeg poore audio link ko fetch karke pehle complete MP3 file local disk par write karega
         ffmpeg_cmd = [
             "ffmpeg", "-y", "-i", audio_url,
             "-vn", "-acodec", "libmp3lame", "-b:a", "192k",
             output_file
         ]
         
-        process = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45)
+        # subprocess.run wait karega jab tak file complete save nahi ho jaati
+        process = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
         
-        if process.returncode != 0 or not os.path.exists(output_file):
-            return {"success": False, "error": "❌ Audio download stream break ho gayi."}
+        # Validation checks ki file disk par sahi se write hui ya nahi
+        if process.returncode != 0 or not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+            return {"success": False, "error": "❌ File local storage me save nahi ho payi."}
 
+        # Sahi se save hone par path return karein taaki player ab ise local disk se bajaye
         return {
-            "success": True,
-            "filepath": output_file,
-            "title": title,
-            "duration": duration
+            "success":   True,
+            "filepath":  output_file,
+            "title":     title,
+            "duration":  duration,
         }
 
     except Exception as e:
-        traceback.print_exc()
-        return {"success": False, "error": f"Error: {str(e)}"}
+        logger.error(f"yt_download error: {traceback.format_exc()}")
+        return {"success": False, "error": str(e)}
 # ─────────────────────────────────────────────
 #  PROGRESS BAR  (zip bot style)
 # ─────────────────────────────────────────────
