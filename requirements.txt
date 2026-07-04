@@ -1,6 +1,6 @@
 python-telegram-bot==20.7
 pyrogram==2.0.106
-pytgcalls
+pytgcalls==2.1.0
 yt-dlp
 nest_asyncio
 ffmpeg-python
