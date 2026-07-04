@@ -8,7 +8,7 @@ import asyncio
 import logging
 import nest_asyncio
 nest_asyncio.apply()
-from pytgcalls import idle, filters
+from pytgcalls import filters
 from collections import deque
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
