@@ -71,6 +71,10 @@ def yt_download(query: str) -> dict:
         "no_warnings": True,
         "default_search": "ytsearch1",
         "noplaylist": True,
+        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Mobile Safari/537.36",
+        },
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
