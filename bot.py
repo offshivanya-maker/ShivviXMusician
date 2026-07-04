@@ -58,6 +58,11 @@ calls = PyTgCalls(pyro_app)
 # ─────────────────────────────────────────────
 #  YOUTUBE DOWNLOAD
 # ─────────────────────────────────────────────
+import traceback
+
+# ─────────────────────────────────────────────
+#  YOUTUBE DOWNLOAD (FIXED & PRODUCTION READY)
+# ─────────────────────────────────────────────
 def yt_download(query: str) -> dict:
     ydl_opts = {
         "format": "bestaudio/best",
@@ -69,7 +74,6 @@ def yt_download(query: str) -> dict:
         }],
         "quiet": True,
         "no_warnings": True,
-        "default_search": "ytsearch1",
         "noplaylist": True,
         "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
         "http_headers": {
@@ -77,10 +81,25 @@ def yt_download(query: str) -> dict:
         },
     }
     try:
+        # Agar query valid URL nahi hai, toh explicitly ytsearch1 use karein
+        if not query.startswith(("http://", "https://")):
+            search_query = f"ytsearch1:{query}"
+        else:
+            search_query = query
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(query, download=True)
+            info = ydl.extract_info(search_query, download=True)
+            
+            # Khali search results handle karne ke liye check
             if "entries" in info:
-                info = info["entries"][0]
+                entries = [e for e in (info.get("entries") or []) if e]
+                if not entries:
+                    return {
+                        "success": False,
+                        "error": "❌ No search results found. Kuch aur likh kar try karo!"
+                    }
+                info = entries[0]
+            
             filepath = os.path.join(DOWNLOAD_DIR, f"{info['id']}.mp3")
             return {
                 "success":   True,
@@ -89,21 +108,12 @@ def yt_download(query: str) -> dict:
                 "duration":  info.get("duration", 0),
             }
     except Exception as e:
-        return {"success": False, "error": str(e)}
-
-def cleanup(filepath: str):
-    try:
-        if filepath and os.path.exists(filepath):
-            os.remove(filepath)
-    except Exception:
-        pass
-
-def make_stream(filepath: str):
-    return MediaStream(filepath, audio_parameters=AUDIO_QUALITY)
-
-def fmt_time(seconds: int) -> str:
-    m, s = divmod(int(seconds or 0), 60)
-    return f"{m}:{s:02d}"
+        # Railway logs mein poora error trace print hoga taaki debugging aasan ho
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": f"An error occurred: {str(e)}"
+        }
 
 # ─────────────────────────────────────────────
 #  PROGRESS BAR  (zip bot style)
