@@ -1,5 +1,5 @@
 python-telegram-bot==20.7
-pyrogram==2.0.106
+pyrofork
 TgCrypto
 py-tgcalls==2.2.11
 yt-dlp
