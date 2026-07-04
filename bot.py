@@ -75,13 +75,20 @@ def yt_download(query: str) -> dict:
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+        # 'ios' aur 'mweb' clients cloud blocks ko bypass karne mein sabse best hain
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["ios", "mweb"],
+                "skip": ["webpage", "hls"],
+            }
+        },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Mobile Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-us",
         },
     }
     try:
-        # Agar query valid URL nahi hai, toh explicitly ytsearch1 use karein
         if not query.startswith(("http://", "https://")):
             search_query = f"ytsearch1:{query}"
         else:
@@ -90,13 +97,12 @@ def yt_download(query: str) -> dict:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(search_query, download=True)
             
-            # Khali search results handle karne ke liye check
             if "entries" in info:
                 entries = [e for e in (info.get("entries") or []) if e]
                 if not entries:
                     return {
                         "success": False,
-                        "error": "❌ No search results found. Kuch aur likh kar try karo!"
+                        "error": "❌ YouTube ne request block kar di ya koi result nahi mila. Please try again!"
                     }
                 info = entries[0]
             
@@ -108,13 +114,11 @@ def yt_download(query: str) -> dict:
                 "duration":  info.get("duration", 0),
             }
     except Exception as e:
-        # Railway logs mein poora error trace print hoga taaki debugging aasan ho
         traceback.print_exc()
         return {
             "success": False,
             "error": f"An error occurred: {str(e)}"
         }
-
 # ─────────────────────────────────────────────
 #  PROGRESS BAR  (zip bot style)
 # ─────────────────────────────────────────────
