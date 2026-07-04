@@ -58,12 +58,30 @@ calls = PyTgCalls(pyro_app)
 # ─────────────────────────────────────────────
 #  YOUTUBE DOWNLOAD
 # ─────────────────────────────────────────────
-import traceback
+import urllib.request
+import json
+import urllib.parse
 
-# ─────────────────────────────────────────────
-#  YOUTUBE DOWNLOAD (FIXED & PRODUCTION READY)
-# ─────────────────────────────────────────────
 def yt_download(query: str) -> dict:
+    # Agar direct URL nahi hai toh alternate search API se video id nikalenge
+    if not query.startswith(("http://", "https://")):
+        try:
+            # Public invidious instance to get search results without scrapers
+            encoded_query = urllib.parse.quote(query)
+            search_url = f"https://invidious.io.lol/api/v1/search?q={encoded_query}&type=video"
+            req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=7) as response:
+                data = json.loads(response.read().decode())
+                if data and len(data) > 0:
+                    video_id = data[0].get("videoId")
+                    search_query = f"https://www.youtube.com/watch?v={video_id}"
+                else:
+                    search_query = f"ytsearch1:{query}"
+        except Exception:
+            search_query = f"ytsearch1:{query}"
+    else:
+        search_query = query
+
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": f"{DOWNLOAD_DIR}/%(id)s.%(ext)s",
@@ -75,25 +93,18 @@ def yt_download(query: str) -> dict:
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        # 'ios' aur 'mweb' clients cloud blocks ko bypass karne mein sabse best hain
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios", "mweb"],
+                "player_client": ["tv", "web"], # Kuch instances pe TV client solid chalta hai
                 "skip": ["webpage", "hls"],
             }
         },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-us",
+            "User-Agent": "Mozilla/5.0 (Chromecast; Google TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
         },
     }
+    
     try:
-        if not query.startswith(("http://", "https://")):
-            search_query = f"ytsearch1:{query}"
-        else:
-            search_query = query
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(search_query, download=True)
             
@@ -102,7 +113,7 @@ def yt_download(query: str) -> dict:
                 if not entries:
                     return {
                         "success": False,
-                        "error": "❌ YouTube ne request block kar di ya koi result nahi mila. Please try again!"
+                        "error": "❌ YouTube block strong hai. Ek baar proper song link use karke dekho!"
                     }
                 info = entries[0]
             
