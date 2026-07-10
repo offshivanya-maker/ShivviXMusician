@@ -84,14 +84,25 @@ except Exception as e:
 def yt_download(query: str, prefer_video: bool = True) -> dict:
     """Download from YouTube - video if available, fallback to audio"""
     
+    # Video-first format selection
+    if prefer_video:
+        format_str = (
+            "bestvideo[ext=mp4][height<=720]+"
+            "bestaudio[ext=m4a]/bestvideo[ext=mp4]+"
+            "bestaudio[ext=m4a]/best[ext=mp4]/best"
+        )
+    else:
+        format_str = "bestaudio/best"
+    
     ydl_opts = {
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" if prefer_video else "bestaudio/best",
+        "format": format_str,
         "outtmpl": f"{DOWNLOAD_DIR}/%(id)s.%(ext)s",
         "quiet": True,
         "no_warnings": True,
         "default_search": "ytsearch1",
         "noplaylist": True,
         "socket_timeout": 30,
+        "merge_output_format": "mp4",
     }
     
     # Add audio postprocessor only for non-video
@@ -161,13 +172,19 @@ def cleanup(filepath: str):
 
 def make_stream(filepath: str, is_video: bool = False):
     """Create media stream for playback"""
-    if is_video:
-        return MediaStream(
-            filepath,
-            audio_parameters=AUDIO_QUALITY,
-            video_parameters=VIDEO_QUALITY
-        )
-    else:
+    try:
+        if is_video and filepath.endswith((".mp4", ".mkv", ".webm")):
+            # Video stream with both audio and video
+            return MediaStream(
+                filepath,
+                audio_parameters=AUDIO_QUALITY,
+                video_parameters=VIDEO_QUALITY
+            )
+        else:
+            # Audio-only stream (fallback for video chats)
+            return MediaStream(filepath, audio_parameters=AUDIO_QUALITY)
+    except Exception as e:
+        logger.warning(f"Stream creation error: {e}, using audio fallback")
         return MediaStream(filepath, audio_parameters=AUDIO_QUALITY)
 
 def fmt_time(seconds: int) -> str:
@@ -226,10 +243,15 @@ async def send_now_playing(chat_id: int, track: dict):
     bar = progress_bar(played, total, length=15)
     q_cnt = len(queues.get(chat_id, []))
     
+    # Check if video is streaming
+    is_vid = is_video.get(chat_id, False)
+    stream_type = "🎬 Video + Audio" if is_vid else "🎵 Audio"
+    
     caption = (
         f"🎵 <b>Ab Chal Raha Hai</b>\n\n"
         f"<b>🎶 {track['title']}</b>\n"
         f"👤 <b>Requested by:</b> {track.get('requested_by', 'Unknown')}\n"
+        f"📡 <b>Type:</b> {stream_type}\n"
         f"⏱️ <code>{fmt_time(played)} {bar} {fmt_time(total)}</code>"
     )
     
@@ -356,18 +378,55 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Help command"""
     help_text = (
         "<b>📚 COMMANDS & FEATURES</b>\n\n"
-        "/play <song> — Play any song 🎵\n"
-        "/pause — Pause playback ⏸️\n"
-        "/resume — Resume playback ▶️\n"
-        "/skip — Next song ⏭️\n"
-        "/stop — Stop & leave ⏹️\n"
-        "/queue — Show queue 📋\n"
-        "/np — Now playing 🎶\n"
-        "/loop [0/3/inf] — Loop mode 🔁\n"
-        "/shuffle — Shuffle queue 🔀\n\n"
-        "<b>💡 TIP:</b> Use inline buttons below songs for quick control!"
+        "<b>🎵 Playback:</b>\n"
+        "/play <song> — Play any song\n"
+        "/pause — Pause playback\n"
+        "/resume — Resume playback\n"
+        "/skip — Next song\n"
+        "/stop — Stop & leave\n\n"
+        
+        "<b>📋 Queue:</b>\n"
+        "/queue — Show queue\n"
+        "/shuffle — Shuffle queue\n"
+        "/loop [0/3/inf] — Loop mode\n\n"
+        
+        "<b>ℹ️ Info:</b>\n"
+        "/np — Now playing\n"
+        "/video — Video streaming info\n\n"
+        
+        "<b>💡 TIP:</b> Use inline buttons for quick control!"
     )
     await update.message.reply_text(help_text, parse_mode="HTML")
+
+async def video_info_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Video streaming info"""
+    video_text = (
+        "<b>🎬 VIDEO STREAMING INFO</b>\n\n"
+        
+        "<b>✅ Video Chalega Jab:</b>\n"
+        "• Group/Channel mein <b>Video Chat</b> enabled ho\n"
+        "• YouTube video available ho\n"
+        "• FFmpeg properly installed ho\n\n"
+        
+        "<b>📡 Stream Types:</b>\n"
+        "🎬 <b>Video Chat:</b> Audio + HD Video\n"
+        "🎵 <b>Voice Chat:</b> Audio only\n\n"
+        
+        "<b>🎥 Quality Settings:</b>\n"
+        "• Audio: MEDIUM (192kbps)\n"
+        "• Video: SD_480 (480p)\n\n"
+        
+        "<b>🚀 Railway pe:</b>\n"
+        "✓ FFmpeg pre-installed\n"
+        "✓ Video encoding on-the-fly\n"
+        "✓ Auto quality adjustment\n\n"
+        
+        "<b>💡 Pro Tips:</b>\n"
+        "1. Video Chat mein /play karo\n"
+        "2. Better internet = better quality\n"
+        "3. Large group = slower processing"
+    )
+    await update.message.reply_text(video_text, parse_mode="HTML")
 
 async def play_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Play command"""
@@ -746,6 +805,7 @@ def main():
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_cmd))
+    application.add_handler(CommandHandler("video", video_info_cmd))
     application.add_handler(CommandHandler("play", play_cmd))
     application.add_handler(CommandHandler("pause", pause_cmd))
     application.add_handler(CommandHandler("resume", resume_cmd))
