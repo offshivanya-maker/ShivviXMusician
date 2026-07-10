@@ -15,3 +15,4 @@ cmd = "python bot.py"
 
 [env]
 PYTHONUNBUFFERED = "1"
+AUDIO_QUALITY = "MEDIUM"
