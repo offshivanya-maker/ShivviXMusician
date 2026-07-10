@@ -25,7 +25,7 @@ from telegram.ext import (
     ContextTypes,
 )
 from pytgcalls import PyTgCalls
-from pytgcalls.types import MediaStream, AudioQuality, VideoQuality
+from pytgcalls.types import MediaStream, AudioQuality
 from pyrogram import Client
 import yt_dlp
 
@@ -39,7 +39,6 @@ SESSION_STRING = os.environ.get("SESSION", "BQE81ZYAGqjo14uOxdeHiBPQRiCc4yNy6qHE
 DOWNLOAD_DIR   = "downloads"
 
 AUDIO_QUALITY = getattr(AudioQuality, os.environ.get("AUDIO_QUALITY", "MEDIUM"))
-VIDEO_QUALITY = getattr(VideoQuality, os.environ.get("VIDEO_QUALITY", "SD_480"))
 
 # ═══════════════════════════════════════════════
 
@@ -173,18 +172,14 @@ def cleanup(filepath: str):
 def make_stream(filepath: str, is_video: bool = False):
     """Create media stream for playback"""
     try:
-        if is_video and filepath.endswith((".mp4", ".mkv", ".webm")):
-            # Video stream with both audio and video
-            return MediaStream(
-                filepath,
-                audio_parameters=AUDIO_QUALITY,
-                video_parameters=VIDEO_QUALITY
-            )
-        else:
-            # Audio-only stream (fallback for video chats)
-            return MediaStream(filepath, audio_parameters=AUDIO_QUALITY)
+        # pytgcalls 2.1.0 auto-detects video from file type
+        # If file is MP4/MKV, it will stream video; otherwise audio only
+        return MediaStream(
+            filepath,
+            audio_parameters=AUDIO_QUALITY
+        )
     except Exception as e:
-        logger.warning(f"Stream creation error: {e}, using audio fallback")
+        logger.warning(f"Stream creation error: {e}")
         return MediaStream(filepath, audio_parameters=AUDIO_QUALITY)
 
 def fmt_time(seconds: int) -> str:
@@ -405,26 +400,29 @@ async def video_info_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         "<b>✅ Video Chalega Jab:</b>\n"
         "• Group/Channel mein <b>Video Chat</b> enabled ho\n"
-        "• YouTube video available ho\n"
+        "• YouTube video available ho (MP4 format)\n"
         "• FFmpeg properly installed ho\n\n"
         
         "<b>📡 Stream Types:</b>\n"
-        "🎬 <b>Video Chat:</b> Audio + HD Video\n"
-        "🎵 <b>Voice Chat:</b> Audio only\n\n"
+        "🎬 <b>Video Chat:</b> MP4 Video + Audio streaming\n"
+        "🎵 <b>Voice Chat:</b> Audio only streaming\n\n"
         
-        "<b>🎥 Quality Settings:</b>\n"
-        "• Audio: MEDIUM (192kbps)\n"
-        "• Video: SD_480 (480p)\n\n"
+        "<b>⚙️ Audio Quality:</b>\n"
+        f"• Current: {os.environ.get('AUDIO_QUALITY', 'MEDIUM')}\n"
+        "• Options: NORMAL, MEDIUM, HIGH, VERY_HIGH\n"
+        "• Bitrate: 128-320 kbps\n\n"
         
-        "<b>🚀 Railway pe:</b>\n"
+        "<b>🚀 Railway Features:</b>\n"
         "✓ FFmpeg pre-installed\n"
-        "✓ Video encoding on-the-fly\n"
-        "✓ Auto quality adjustment\n\n"
+        "✓ MP4 video download\n"
+        "✓ Auto quality adaptation\n"
+        "✓ Thumbnail support\n\n"
         
         "<b>💡 Pro Tips:</b>\n"
         "1. Video Chat mein /play karo\n"
-        "2. Better internet = better quality\n"
-        "3. Large group = slower processing"
+        "2. Faster internet = smoother playback\n"
+        "3. Download time ~30-60 seconds\n"
+        "4. Processing time ~10-30 seconds"
     )
     await update.message.reply_text(video_text, parse_mode="HTML")
 
