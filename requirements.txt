@@ -1,6 +1,6 @@
 python-telegram-bot==20.7
 pyrogram==2.0.106
-pytgcalls==2.1.0
+pytgcalls==3.0.0.dev22
 yt-dlp>=2024.1.0
 nest_asyncio>=1.6.0
 requests>=2.31.0
