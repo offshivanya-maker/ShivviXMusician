@@ -11,11 +11,9 @@ import logging
 import nest_asyncio
 import requests
 from io import BytesIO
-nest_asyncio.apply()
-
-from pytgcalls import filters
 from collections import deque
 from urllib.parse import quote
+nest_asyncio.apply()
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -26,6 +24,7 @@ from telegram.ext import (
 )
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream, AudioQuality
+from pytgcalls import filters
 from pyrogram import Client
 import yt_dlp
 
