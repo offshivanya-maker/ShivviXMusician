@@ -1,8 +1,17 @@
+[build]
+dockerfile = "Dockerfile.railway"
+
 [phases.setup]
-nixPkgs = ["python310", "ffmpeg"]
+nixPkgs = ["python310", "ffmpeg", "gcc", "pkg-config"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = ["pip install --upgrade pip setuptools", "pip install -r requirements.txt"]
+
+[phases.build]
+cmds = ["mkdir -p /app/downloads"]
 
 [start]
 cmd = "python bot.py"
+
+[env]
+PYTHONUNBUFFERED = "1"
