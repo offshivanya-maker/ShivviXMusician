@@ -22,7 +22,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
 )
-from pytgcalls import PyTgCalls
+from pytgcalls import TgCalls
 from pytgcalls.types import MediaStream, AudioQuality
 from pytgcalls import filters
 from pyrogram import Client
@@ -70,8 +70,8 @@ try:
         session_string=SESSION_STRING,
         no_updates=True,
     )
-    calls = PyTgCalls(pyro_app)
-    logger.info("✅ Pyrogram + PyTgCalls initialized")
+    calls = TgCalls(pyro_app)
+    logger.info("✅ Pyrogram + TgCalls initialized")
 except Exception as e:
     logger.error(f"❌ Failed to init Pyrogram: {e}")
     sys.exit(1)
